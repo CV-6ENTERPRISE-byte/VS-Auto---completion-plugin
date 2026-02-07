@@ -1,0 +1,94 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+
+namespace AIModDeveloper
+{
+    public class ProfileManager
+    {
+        private readonly string _profilesPath;
+        private readonly List<ProjectProfile> _profiles;
+        private ProjectProfile _activeProfile;
+
+        public ProfileManager(string solutionPath)
+        {
+            _profilesPath = Path.Combine(solutionPath, ".ai-profiles.json");
+            _profiles = LoadProfiles();
+        }
+
+        public ProjectProfile CreateGameModProfile(string gameName, string gamePath)
+        {
+            var profile = new ProjectProfile
+            {
+                Name = $"{gameName} Mod",
+                Type = ProjectType.GameMod,
+                Target = gameName,
+                RootPath = Path.Combine(Path.GetDirectoryName(_profilesPath), "Mods", gameName),
+                Metadata = new Dictionary<string, object>
+                {
+                    ["GamePath"] = gamePath,
+                    ["GameVersion"] = DetectGameVersion(gamePath),
+                    ["ModFramework"] = DetectModFramework(gamePath)
+                }
+            };
+            
+            Directory.CreateDirectory(profile.RootPath);
+            _profiles.Add(profile);
+            SaveProfiles();
+            return profile;
+        }
+
+        public ProjectProfile CreateWebPluginProfile(string siteName, string url)
+        {
+            var profile = new ProjectProfile
+            {
+                Name = $"{siteName} Plugin",
+                Type = ProjectType.WebPlugin,
+                Target = url,
+                RootPath = Path.Combine(Path.GetDirectoryName(_profilesPath), "WebPlugins", siteName),
+                Metadata = new Dictionary<string, object>
+                {
+                    ["SiteUrl"] = url,
+                    ["SiteStructure"] = null,
+                    ["LastAnalyzed"] = DateTime.MinValue
+                }
+            };
+            
+            Directory.CreateDirectory(profile.RootPath);
+            _profiles.Add(profile);
+            SaveProfiles();
+            return profile;
+        }
+
+        public void SwitchProfile(string profileId)
+        {
+            _activeProfile = _profiles.FirstOrDefault(p => p.Id == profileId);
+        }
+
+        public ProjectProfile GetActiveProfile() => _activeProfile;
+        public List<ProjectProfile> GetAllProfiles() => _profiles;
+        public List<ProjectProfile> GetGameModProfiles() => _profiles.Where(p => p.Type == ProjectType.GameMod).ToList();
+        public List<ProjectProfile> GetWebPluginProfiles() => _profiles.Where(p => p.Type == ProjectType.WebPlugin).ToList();
+
+        private List<ProjectProfile> LoadProfiles()
+        {
+            if (File.Exists(_profilesPath))
+            {
+                var json = File.ReadAllText(_profilesPath);
+                return JsonSerializer.Deserialize<List<ProjectProfile>>(json) ?? new List<ProjectProfile>();
+            }
+            return new List<ProjectProfile>();
+        }
+
+        private void SaveProfiles()
+        {
+            var json = JsonSerializer.Serialize(_profiles, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(_profilesPath, json);
+        }
+
+        private string DetectGameVersion(string path) => "0.10.x";
+        private string DetectModFramework(string path) => "BepInEx";
+    }
+}

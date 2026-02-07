@@ -1,0 +1,35 @@
+<UserControl x:Class="AIModDeveloper.AIModToolWindowControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="600" Width="400">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="AI Mod Developer" FontSize="18" FontWeight="Bold" Margin="10"/>
+
+        <StackPanel Grid.Row="1" Margin="10">
+            <Button x:Name="btnNewGameMod" Content="新建游戏Mod项目" Click="BtnNewGameMod_Click" Margin="0,5"/>
+            <Button x:Name="btnNewWebPlugin" Content="新建网站插件项目" Click="BtnNewWebPlugin_Click" Margin="0,5"/>
+            <Button x:Name="btnSwitchProject" Content="切换项目" Click="BtnSwitchProject_Click" Margin="0,5"/>
+            <Button x:Name="btnListProjects" Content="列出所有项目" Click="BtnListProjects_Click" Margin="0,5"/>
+            <Separator Margin="0,10"/>
+            <Button x:Name="btnDevelopGame" Content="开发游戏功能" Click="BtnDevelopGame_Click" Margin="0,5"/>
+            <Button x:Name="btnDevelopWeb" Content="开发网站功能" Click="BtnDevelopWeb_Click" Margin="0,5"/>
+            <Button x:Name="btnAutoFix" Content="自动修复当前项目" Click="BtnAutoFix_Click" Margin="0,5"/>
+            <Button x:Name="btnBatch" Content="批量开发" Click="BtnBatch_Click" Margin="0,5"/>
+        </StackPanel>
+
+        <TextBox Grid.Row="2" x:Name="txtOutput" Margin="10" IsReadOnly="True" 
+                 VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"
+                 Background="#1E1E1E" Foreground="#D4D4D4" FontFamily="Consolas"/>
+
+        <StatusBar Grid.Row="3">
+            <StatusBarItem x:Name="statusText" Content="就绪"/>
+        </StatusBar>
+    </Grid>
+</UserControl>

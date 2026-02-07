@@ -1,0 +1,143 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using EnvDTE;
+
+namespace AIModDeveloper
+{
+    public class MultiProjectEngine
+    {
+        private readonly ProfileManager _profileManager;
+        private readonly IAIEngine _ai;
+        private readonly DTE _dte;
+        private readonly Dictionary<string, AutoModDeveloper> _modDevelopers;
+        private readonly Dictionary<string, WebPluginDeveloper> _webDevelopers;
+
+        public MultiProjectEngine(ProfileManager profileManager, IAIEngine ai, DTE dte)
+        {
+            _profileManager = profileManager;
+            _ai = ai;
+            _dte = dte;
+            _modDevelopers = new Dictionary<string, AutoModDeveloper>();
+            _webDevelopers = new Dictionary<string, WebPluginDeveloper>();
+        }
+
+        public async Task WorkOnGameModAsync(string gameName, string intent, string code)
+        {
+            var profile = _profileManager.GetGameModProfiles().FirstOrDefault(p => p.Target == gameName);
+            if (profile == null)
+            {
+                var gamePath = Prompt($"请输入 {gameName} 的安装路径:");
+                profile = _profileManager.CreateGameModProfile(gameName, gamePath);
+            }
+
+            _profileManager.SwitchProfile(profile.Id);
+            
+            if (!_modDevelopers.ContainsKey(profile.Id))
+            {
+                var developer = new AutoModDeveloper(_ai, _dte, profile.RootPath);
+                await developer.InitializeAsync(gameName);
+                _modDevelopers[profile.Id] = developer;
+            }
+
+            var plugin = new PluginInstance
+            {
+                Name = $"Feature_{DateTime.Now:yyyyMMdd_HHmmss}",
+                Intent = intent,
+                Code = code
+            };
+            profile.Plugins.Add(plugin);
+
+            await _modDevelopers[profile.Id].DevelopFeatureAsync(intent, code);
+        }
+
+        public async Task WorkOnWebsiteAsync(string siteName, string url, string intent)
+        {
+            var profile = _profileManager.GetWebPluginProfiles().FirstOrDefault(p => p.Target == url);
+            if (profile == null)
+            {
+                profile = _profileManager.CreateWebPluginProfile(siteName, url);
+            }
+
+            _profileManager.SwitchProfile(profile.Id);
+
+            if (!_webDevelopers.ContainsKey(profile.Id))
+            {
+                _webDevelopers[profile.Id] = new WebPluginDeveloper(_ai);
+            }
+
+            var developer = _webDevelopers[profile.Id];
+
+            if (profile.Metadata["SiteStructure"] == null || (DateTime.Now - (DateTime)profile.Metadata["LastAnalyzed"]).TotalHours > 24)
+            {
+                await developer.AnalyzeWebsiteAsync(url);
+                profile.Metadata["SiteStructure"] = "analyzed";
+                profile.Metadata["LastAnalyzed"] = DateTime.Now;
+            }
+
+            var plugin = new PluginInstance
+            {
+                Name = $"{siteName}_{intent.GetHashCode():X}",
+                Intent = intent
+            };
+            profile.Plugins.Add(plugin);
+
+            await developer.DevelopPluginAsync(intent, profile.RootPath);
+        }
+
+        public async Task SwitchToProjectAsync(string projectName)
+        {
+            var profile = _profileManager.GetAllProfiles().FirstOrDefault(p => p.Name == projectName);
+            if (profile != null)
+            {
+                _profileManager.SwitchProfile(profile.Id);
+                ShowNotification($"已切换到项目: {projectName}");
+            }
+        }
+
+        public async Task ListAllProjectsAsync()
+        {
+            var mods = _profileManager.GetGameModProfiles();
+            var webs = _profileManager.GetWebPluginProfiles();
+
+            var sb = new StringBuilder();
+            sb.AppendLine("=== 游戏Mod项目 ===");
+            foreach (var m in mods)
+            {
+                sb.AppendLine($"[{m.Id.Substring(0, 8)}] {m.Name} - {m.Plugins.Count} 个插件");
+            }
+
+            sb.AppendLine("\n=== 网站插件项目 ===");
+            foreach (var w in webs)
+            {
+                sb.AppendLine($"[{w.Id.Substring(0, 8)}] {w.Name} - {w.Plugins.Count} 个功能");
+            }
+
+            ShowNotification(sb.ToString());
+        }
+
+        public async Task AutoFixCurrentProjectAsync()
+        {
+            var profile = _profileManager.GetActiveProfile();
+            if (profile == null)
+            {
+                ShowNotification("请先选择或创建一个项目");
+                return;
+            }
+
+            if (profile.Type == ProjectType.GameMod && _modDevelopers.ContainsKey(profile.Id))
+            {
+                await _modDevelopers[profile.Id].AutoFixAllErrorsAsync();
+            }
+            else if (profile.Type == ProjectType.WebPlugin && _webDevelopers.ContainsKey(profile.Id))
+            {
+                await _webDevelopers[profile.Id].AutoFixAllErrorsAsync();
+            }
+        }
+
+        private string Prompt(string message) => Microsoft.VisualBasic.Interaction.InputBox(message, "AI Developer", "");
+        private void ShowNotification(string message) => _dte.StatusBar.Text = message;
+    }
+}

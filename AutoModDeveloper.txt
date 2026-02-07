@@ -1,0 +1,136 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using EnvDTE;
+
+namespace AIModDeveloper
+{
+    public class AutoModDeveloper
+    {
+        private readonly IAIEngine _ai;
+        private readonly DTE _dte;
+        private readonly string _projectPath;
+        private AnalysisResult _projectContext;
+
+        public AutoModDeveloper(IAIEngine ai, DTE dte, string projectPath)
+        {
+            _ai = ai;
+            _dte = dte;
+            _projectPath = projectPath;
+        }
+
+        public async Task InitializeAsync(string gameName)
+        {
+            var files = Directory.GetFiles(_projectPath, "*.cs", SearchOption.AllDirectories).ToList();
+            _projectContext = await _ai.AnalyzeProjectAsync(gameName, _projectPath, files);
+            ShowNotification($"已初始化: {_projectContext.Framework} 框架, 游戏版本 {_projectContext.GameVersion}");
+        }
+
+        public async Task DevelopFeatureAsync(string intent, string code)
+        {
+            var placement = await _ai.PlanCodePlacementAsync(intent, GetAllFiles(), code);
+            
+            if (placement.Action == "create")
+            {
+                await CreateNewFileAsync(placement.NewFileName, code, placement.Reason);
+            }
+            else
+            {
+                await ModifyFileAsync(placement.TargetFile, code, placement.Position, placement.Reason);
+            }
+
+            await BuildAndValidateAsync();
+        }
+
+        public async Task AutoFixAllErrorsAsync()
+        {
+            var errors = GetAllErrors();
+            foreach (var error in errors)
+            {
+                await FixSingleErrorAsync(error);
+            }
+        }
+
+        private async Task FixSingleErrorAsync(ErrorItem error)
+        {
+            var context = GetErrorContext(error);
+            var webSolutions = await _ai.SearchWebSolutionsAsync(error.Description, _projectContext.GameName);
+            var fix = await _ai.AutoFixAsync(error, context, webSolutions);
+            
+            if (fix.Confidence > 0.85)
+            {
+                ApplyFix(fix, error.FileName);
+                ShowNotification($"已自动修复: {error.Description}");
+            }
+            else
+            {
+                ShowFixSuggestion(fix, error);
+            }
+        }
+
+        private async Task BuildAndValidateAsync()
+        {
+            _dte.Solution.SolutionBuild.Build(true);
+            
+            if (_dte.Solution.SolutionBuild.LastBuildInfo != 0)
+            {
+                ShowNotification("构建失败，启动自动修复...");
+                await AutoFixAllErrorsAsync();
+            }
+            else
+            {
+                ShowNotification("构建成功!");
+            }
+        }
+
+        private List<string> GetAllFiles() => Directory.GetFiles(_projectPath, "*.cs", SearchOption.AllDirectories).ToList();
+        private List<ErrorItem> GetAllErrors() => _dte.ToolWindows.ErrorList.ErrorItems.Cast<ErrorItem>().ToList();
+        private string GetErrorContext(ErrorItem error) => File.ReadLines(error.FileName).Skip(error.Line - 5).Take(10).Aggregate((a, b) => a + "\n" + b);
+        
+        private async Task CreateNewFileAsync(string fileName, string code, string reason)
+        {
+            var path = Path.Combine(_projectPath, fileName);
+            File.WriteAllText(path, code);
+            _dte.ItemOperations.AddExistingItem(path);
+            ShowNotification($"创建文件 {fileName}: {reason}");
+        }
+
+        private async Task ModifyFileAsync(string targetFile, string code, string position, string reason)
+        {
+            var path = Path.Combine(_projectPath, targetFile);
+            var existing = File.ReadAllText(path);
+            var modified = InsertCodeAtPosition(existing, code, position);
+            File.WriteAllText(path, modified);
+            ShowNotification($"修改 {targetFile} ({position}): {reason}");
+        }
+
+        private string InsertCodeAtPosition(string existing, string newCode, string position)
+        {
+            if (position == "end") return existing + "\n" + newCode;
+            if (position == "beginning") return newCode + "\n" + existing;
+            if (position.StartsWith("after:"))
+            {
+                var method = position.Substring(6);
+                var regex = new Regex($@"({method}\s*\([^{{]*{{[^{{}}]*}})");
+                return regex.Replace(existing, m => m.Value + "\n" + newCode);
+            }
+            return existing + "\n" + newCode;
+        }
+
+        private void ApplyFix(FixResult fix, string filePath)
+        {
+            var lines = File.ReadAllLines(filePath).ToList();
+            foreach (var change in fix.Changes.OrderByDescending(c => c.Line))
+            {
+                lines[change.Line - 1] = lines[change.Line - 1].Replace(change.OldText, change.NewText);
+            }
+            File.WriteAllLines(filePath, lines);
+        }
+
+        private void ShowNotification(string message) => _dte.StatusBar.Text = message;
+        private void ShowFixSuggestion(FixResult fix, ErrorItem error) => System.Diagnostics.Debug.WriteLine($"建议修复 (置信度{fix.Confidence:P}): {fix.Explanation}");
+    }
+}

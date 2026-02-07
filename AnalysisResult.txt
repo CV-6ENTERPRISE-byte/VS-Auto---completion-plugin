@@ -1,0 +1,58 @@
+using System.Collections.Generic;
+
+namespace AIModDeveloper
+{
+    public class AnalysisResult
+    {
+        public string Framework { get; set; }
+        public string GameVersion { get; set; }
+        public string GameName { get; set; }
+        public List<FileDependency> Dependencies { get; set; }
+        public List<string> EntryPoints { get; set; }
+    }
+
+    public class FileDependency
+    {
+        public string File { get; set; }
+        public List<string> DependsOn { get; set; }
+        public string Purpose { get; set; }
+    }
+
+    public class PlacementPlan
+    {
+        public string Action { get; set; }
+        public string TargetFile { get; set; }
+        public string Position { get; set; }
+        public string Reason { get; set; }
+        public string NewFileName { get; set; }
+    }
+
+    public class FixResult
+    {
+        public string FixedCode { get; set; }
+        public string Explanation { get; set; }
+        public double Confidence { get; set; }
+        public List<CodeChange> Changes { get; set; }
+    }
+
+    public class CodeChange
+    {
+        public int Line { get; set; }
+        public string OldText { get; set; }
+        public string NewText { get; set; }
+    }
+
+    public class SearchResult
+    {
+        public string Title { get; set; }
+        public string Url { get; set; }
+        public string Snippet { get; set; }
+    }
+
+    public class ValidationResult
+    {
+        public bool IsValid { get; set; }
+        public List<string> Issues { get; set; }
+        public List<string> Suggestions { get; set; }
+    }
+}

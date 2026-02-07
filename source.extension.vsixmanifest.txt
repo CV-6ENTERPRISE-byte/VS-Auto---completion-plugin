@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
+  <Metadata>
+    <Identity Id="AIModDeveloper.12345678-1234-1234-1234-123456789012" 
+              Version="1.0.0" 
+              Language="zh-CN" 
+              Publisher="YourName" />
+    <DisplayName>AI Mod Developer</DisplayName>
+    <Description>AI驱动的全自动Mod和网站插件开发工具</Description>
+    <Tags>AI, Mod, Plugin, Automation, DeepSeek</Tags>
+  </Metadata>
+  <Installation>
+    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[18.0, 19.0)" />
+    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[18.0, 19.0)" />
+    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[18.0, 19.0)" />
+  </Installation>
+  <Dependencies>
+    <Dependency Id="Microsoft.Framework.NDP" DisplayName=".NET Framework" Version="[4.8,)" />
+  </Dependencies>
+  <Prerequisites>
+    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[18.0,19.0)" />
+  </Prerequisites>
+  <Assets>
+    <Asset Type="Microsoft.VisualStudio.VsPackage" Path="AIModDeveloper.dll" />
+    <Asset Type="Microsoft.VisualStudio.MefComponent" Path="AIModDeveloper.dll" />
+  </Assets>
+</PackageManifest>

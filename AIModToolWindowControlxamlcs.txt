@@ -1,0 +1,60 @@
+using System;
+using System.Windows;
+using System.Windows.Controls;
+
+namespace AIModDeveloper
+{
+    public partial class AIModToolWindowControl : UserControl
+    {
+        public AIModToolWindowControl()
+        {
+            InitializeComponent();
+        }
+
+        private void Log(string message)
+        {
+            txtOutput.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\n");
+            txtOutput.ScrollToEnd();
+        }
+
+        private void BtnNewGameMod_Click(object sender, RoutedEventArgs e)
+        {
+            Log("新建游戏Mod项目功能待实现");
+        }
+
+        private void BtnNewWebPlugin_Click(object sender, RoutedEventArgs e)
+        {
+            Log("新建网站插件项目功能待实现");
+        }
+
+        private void BtnSwitchProject_Click(object sender, RoutedEventArgs e)
+        {
+            Log("切换项目功能待实现");
+        }
+
+        private void BtnListProjects_Click(object sender, RoutedEventArgs e)
+        {
+            Log("列出所有项目功能待实现");
+        }
+
+        private void BtnDevelopGame_Click(object sender, RoutedEventArgs e)
+        {
+            Log("开发游戏功能待实现");
+        }
+
+        private void BtnDevelopWeb_Click(object sender, RoutedEventArgs e)
+        {
+            Log("开发网站功能待实现");
+        }
+
+        private void BtnAutoFix_Click(object sender, RoutedEventArgs e)
+        {
+            Log("自动修复功能待实现");
+        }
+
+        private void BtnBatch_Click(object sender, RoutedEventArgs e)
+        {
+            Log("批量开发功能待实现");
+        }
+    }
+}

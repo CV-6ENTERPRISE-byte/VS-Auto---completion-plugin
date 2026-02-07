@@ -1,0 +1,14 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+namespace AIModDeveloper
+{
+    public interface IAIEngine
+    {
+        Task<AnalysisResult> AnalyzeProjectAsync(string gameName, string projectPath, List<string> codeFiles);
+        Task<PlacementPlan> PlanCodePlacementAsync(string intent, List<string> existingFiles, string newCode);
+        Task<FixResult> AutoFixAsync(EnvDTE.ErrorItem error, string context, List<SearchResult> webSolutions);
+        Task<List<SearchResult>> SearchWebSolutionsAsync(string errorMessage, string gameName);
+        Task<bool> ValidateAndRefineAsync(string filePath, string code);
+    }
+}

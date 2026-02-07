@@ -1,0 +1,117 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+
+namespace AIModDeveloper
+{
+    public class WebPluginDeveloper
+    {
+        private readonly IAIEngine _ai;
+        private readonly HttpClient _http;
+        private string _targetUrl;
+        private string _siteStructure;
+
+        public WebPluginDeveloper(IAIEngine ai)
+        {
+            _ai = ai;
+            _http = new HttpClient();
+        }
+
+        public async Task AnalyzeWebsiteAsync(string url)
+        {
+            _targetUrl = url;
+            try
+            {
+                var html = await _http.GetStringAsync(url);
+                _siteStructure = await AnalyzeSiteStructureAsync(html);
+            }
+            catch
+            {
+                _siteStructure = "无法直接访问，将基于常见结构生成";
+            }
+        }
+
+        public async Task DevelopPluginAsync(string intent, string outputPath)
+        {
+            var prompt = BuildWebPluginPrompt(intent);
+            var response = await ((DeepSeekEngine)_ai).CallAIAsync(prompt);
+            var files = ParsePluginFiles(response);
+
+            foreach (var file in files)
+            {
+                var filePath = Path.Combine(outputPath, file.Key);
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+                File.WriteAllText(filePath, file.Value);
+            }
+
+            var manifestPath = Path.Combine(outputPath, "manifest.json");
+            if (!File.Exists(manifestPath))
+            {
+                File.WriteAllText(manifestPath, GenerateManifest(intent));
+            }
+        }
+
+        public async Task AutoFixAllErrorsAsync()
+        {
+        }
+
+        private string BuildWebPluginPrompt(string intent)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"目标网站: {_targetUrl}");
+            sb.AppendLine($"网站结构: {_siteStructure}");
+            sb.AppendLine($"开发意图: {intent}");
+            sb.AppendLine("请生成完整的浏览器扩展代码。");
+            sb.AppendLine("要求:");
+            sb.AppendLine("1. 使用Manifest V3");
+            sb.AppendLine("2. 代码注入要针对特定网站URL匹配");
+            sb.AppendLine("3. 包含错误处理和边界情况");
+            sb.AppendLine("4. 使用现代JavaScript (ES6+)");
+            sb.AppendLine("返回格式: 多个代码块，每个以 // filename.ext 开头");
+            return sb.ToString();
+        }
+
+        private async Task<string> AnalyzeSiteStructureAsync(string html)
+        {
+            var prompt = $"分析以下HTML结构，提取关键元素和可能的注入点:\n{html.Substring(0, Math.Min(5000, html.Length))}\n返回简洁的结构描述";
+            return await ((DeepSeekEngine)_ai).CallAIAsync(prompt);
+        }
+
+        private Dictionary<string, string> ParsePluginFiles(string aiResponse)
+        {
+            var files = new Dictionary<string, string>();
+            var matches = Regex.Matches(aiResponse, @"```(\w+)?\s*//\s*(\S+)\s*\n(.*?)```", RegexOptions.Singleline);
+            foreach (Match m in matches)
+            {
+                files[m.Groups[2].Value] = m.Groups[3].Value.Trim();
+            }
+            return files;
+        }
+
+        private string GenerateManifest(string intent)
+        {
+            var name = intent.Replace(" ", "_").ToLower();
+            return JsonSerializer.Serialize(new
+            {
+                manifest_version = 3,
+                name = intent,
+                version = "1.0.0",
+                description = $"Auto-generated plugin for {intent}",
+                permissions = new[] { "activeTab", "storage" },
+                content_scripts = new[]
+                {
+                    new
+                    {
+                        matches = new[] { _targetUrl + "/*" },
+                        js = new[] { "content.js" }
+                    }
+                }
+            }, new JsonSerializerOptions { WriteIndented = true });
+        }
+    }
+}

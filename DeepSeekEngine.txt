@@ -1,0 +1,199 @@
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using EnvDTE80;
+
+namespace AIModDeveloper
+{
+    public class DeepSeekEngine : IAIEngine
+    {
+        private readonly HttpClient _http;
+        private readonly string _apiKey;
+        private readonly string _endpoint = "https://api.deepseek.com/v1/chat/completions";
+
+        public DeepSeekEngine(string apiKey)
+        {
+            _apiKey = apiKey;
+            _http = new HttpClient();
+            _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+        }
+
+        public async Task<AnalysisResult> AnalyzeProjectAsync(string gameName, string projectPath, List<string> codeFiles)
+        {
+            var prompt = BuildProjectAnalysisPrompt(gameName, projectPath, codeFiles);
+            var response = await CallAIAsync(prompt);
+            return ParseAnalysisResponse(response);
+        }
+
+        public async Task<PlacementPlan> PlanCodePlacementAsync(string intent, List<string> existingFiles, string newCode)
+        {
+            var prompt = BuildPlacementPrompt(intent, existingFiles, newCode);
+            var response = await CallAIAsync(prompt);
+            return ParsePlacementResponse(response);
+        }
+
+        public async Task<FixResult> AutoFixAsync(ErrorItem error, string context, List<SearchResult> webSolutions)
+        {
+            var prompt = BuildFixPrompt(error, context, webSolutions);
+            var response = await CallAIAsync(prompt);
+            return ParseFixResponse(response);
+        }
+
+        public async Task<List<SearchResult>> SearchWebSolutionsAsync(string errorMessage, string gameName)
+        {
+            var searchQuery = BuildSearchQuery(errorMessage, gameName);
+            return await PerformWebSearch(searchQuery);
+        }
+
+        public async Task<bool> ValidateAndRefineAsync(string filePath, string code)
+        {
+            var prompt = BuildValidationPrompt(filePath, code);
+            var response = await CallAIAsync(prompt);
+            return ParseValidationResponse(response);
+        }
+
+        public async Task<string> CallAIAsync(string prompt)
+        {
+            var request = new
+            {
+                model = "deepseek-coder",
+                messages = new[] { new { role = "user", content = prompt } },
+                temperature = 0.2,
+                max_tokens = 4000
+            };
+
+            var json = JsonSerializer.Serialize(request);
+            var response = await _http.PostAsync(_endpoint, new StringContent(json, Encoding.UTF8, "application/json"));
+            var result = await response.Content.ReadAsStringAsync();
+            return ExtractContent(result);
+        }
+
+        private string BuildProjectAnalysisPrompt(string gameName, string projectPath, List<string> files)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"你是一个专业的{gameName} Mod开发专家。");
+            sb.AppendLine($"项目路径: {projectPath}");
+            sb.AppendLine($"现有文件结构:");
+            foreach (var f in files) sb.AppendLine($"- {f}");
+            sb.AppendLine("请分析:");
+            sb.AppendLine("1. 项目使用的Mod框架 (BepInEx/MelonLoader等)");
+            sb.AppendLine("2. 游戏版本和API特性");
+            sb.AppendLine("3. 代码文件之间的依赖关系");
+            sb.AppendLine("4. 每个文件的功能定位");
+            sb.AppendLine("返回JSON格式: {framework, gameVersion, dependencies: [{file, dependsOn, purpose}], entryPoints}");
+            return sb.ToString();
+        }
+
+        private string BuildPlacementPrompt(string intent, List<string> files, string code)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"开发意图: {intent}");
+            sb.AppendLine($"现有文件:");
+            files.ForEach(f => sb.AppendLine($"- {f}"));
+            sb.AppendLine($"待放置代码:\n{code}");
+            sb.AppendLine("请分析这段代码应该放在哪个文件的哪个位置，或者是否需要创建新文件。");
+            sb.AppendLine("返回JSON格式: {action: 'create'|'modify', targetFile, position: 'beginning'|'end'|'after:MethodName'|'before:MethodName', reason, newFileName?}");
+            return sb.ToString();
+        }
+
+        private string BuildFixPrompt(ErrorItem error, string context, List<SearchResult> solutions)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"错误代码: {error.ErrorNumber}");
+            sb.AppendLine($"错误信息: {error.Description}");
+            sb.AppendLine($"错误文件: {error.FileName}:{error.Line}");
+            sb.AppendLine($"上下文代码:\n{context}");
+            if (solutions != null && solutions.Count > 0)
+            {
+                sb.AppendLine("网络搜索到的解决方案:");
+                solutions.ForEach(s => sb.AppendLine($"- {s.Title}: {s.Snippet}"));
+            }
+            sb.AppendLine("请提供最优修复方案，考虑Mod开发最佳实践。");
+            sb.AppendLine("返回JSON格式: {fixedCode, explanation, confidence, changes: [{line, oldText, newText}]}");
+            return sb.ToString();
+        }
+
+        private string BuildValidationPrompt(string filePath, string code)
+        {
+            return $"请验证以下{filePath}中的代码:\n{code}\n检查语法正确性、API调用是否合法、是否符合Mod框架规范。返回JSON: {{isValid, issues: [], suggestions: []}}";
+        }
+
+        private string BuildSearchQuery(string error, string game)
+        {
+            return $"{game} Mod {error} BepInEx fix";
+        }
+
+        private async Task<List<SearchResult>> PerformWebSearch(string query)
+        {
+            await Task.Delay(100);
+            return new List<SearchResult>
+            {
+                new SearchResult { Title = "BepInEx Wiki", Url = "https://docs.bepinex.dev", Snippet = "常见错误修复..." }
+            };
+        }
+
+        private string ExtractContent(string jsonResponse)
+        {
+            try
+            {
+                var doc = JsonDocument.Parse(jsonResponse);
+                return doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
+            }
+            catch
+            {
+                return jsonResponse;
+            }
+        }
+
+        private AnalysisResult ParseAnalysisResponse(string response)
+        {
+            try
+            {
+                return JsonSerializer.Deserialize<AnalysisResult>(response);
+            }
+            catch
+            {
+                return new AnalysisResult { Framework = "Unknown", GameVersion = "Unknown", Dependencies = new List<FileDependency>(), EntryPoints = new List<string>() };
+            }
+        }
+
+        private PlacementPlan ParsePlacementResponse(string response)
+        {
+            try
+            {
+                return JsonSerializer.Deserialize<PlacementPlan>(response);
+            }
+            catch
+            {
+                return new PlacementPlan { Action = "create", NewFileName = "NewFile.cs", Reason = "Default placement" };
+            }
+        }
+
+        private FixResult ParseFixResponse(string response)
+        {
+            try
+            {
+                return JsonSerializer.Deserialize<FixResult>(response);
+            }
+            catch
+            {
+                return new FixResult { FixedCode = "", Explanation = "Parse failed", Confidence = 0, Changes = new List<CodeChange>() };
+            }
+        }
+
+        private bool ParseValidationResponse(string response)
+        {
+            try
+            {
+                return JsonSerializer.Deserialize<ValidationResult>(response).IsValid;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+}
